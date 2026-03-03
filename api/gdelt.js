@@ -1,7 +1,7 @@
 // api/gdelt.js
 // Fetches real conflict/war news from GDELT (free, no key needed)
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate'); // cache 5 min
 
