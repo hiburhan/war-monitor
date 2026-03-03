@@ -1,7 +1,7 @@
 // api/usgs.js
 // Fetches real earthquake data from USGS (completely free, no key needed)
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=180, stale-while-revalidate'); // cache 3 min
 
