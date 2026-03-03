@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAR MONITOR — Global Conflict Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oswald:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #040608;
+    --panel: #080d12;
+    --border: #1a2a1a;
+    --accent: #00ff41;
+    --accent2: #ff3b00;
+    --accent3: #ffd700;
+    --accent4: #00aaff;
+    --dim: #1c2c1c;
+    --text: #c8e8c8;
+    --muted: #4a6a4a;
+    --critical: #ff3b00;
+    --high: #ff8c00;
+    --medium: #ffd700;
+    --low: #00aaff;
+    --info: #00ff41;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    height: 100vh;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  body::before {
+    content: '';
+    position: fixed; top:0; left:0; right:0; bottom:0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+  @keyframes flicker { 0%,100%{opacity:1} 92%{opacity:0.98} 94%{opacity:0.95} 96%{opacity:0.98} }
+  body { animation: flicker 8s infinite; }
+
+  /* HEADER */
+  #header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    height: 38px; flex-shrink: 0;
+  }
+  .logo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 20px; font-weight: 700; letter-spacing: 6px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,255,65,0.5);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon { font-size: 18px; color: var(--accent2); animation: spin 12s linear infinite; display: inline-block; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .threat-level { display:flex; align-items:center; gap:8px; font-size:10px; color:var(--muted); }
+  .threat-bar { width:80px; height:6px; background:#111; border:1px solid var(--border); border-radius:2px; overflow:hidden; }
+  .threat-fill { height:100%; background:linear-gradient(90deg,var(--info),var(--medium),var(--high),var(--critical)); width:72%; animation: pulse-bar 3s ease-in-out infinite; }
+  @keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .header-stats { display:flex; gap:16px; }
+  .hstat { text-align:center; font-size:10px; }
+  .hstat-val { font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; }
+  .hstat-val.critical { color:var(--critical); text-shadow:0 0 8px rgba(255,59,0,0.5); }
+  .hstat-val.high { color:var(--high); }
+  .hstat-val.warn { color:var(--medium); }
+  .hstat-val.good { color:var(--accent); }
+  .hstat-label { color:var(--muted); font-size:8px; letter-spacing:2px; }
+  .clock { font-family:'Space Mono',monospace; font-size:14px; color:var(--accent); letter-spacing:2px; }
+
+  /* LAYOUT */
+  #main {
+    display: grid;
+    grid-template-columns: 220px 1fr 220px;
+    grid-template-rows: 1fr 165px;
+    height: calc(100vh - 38px);
+  }
+  .panel { background:var(--panel); border:1px solid var(--border); overflow:hidden; display:flex; flex-direction:column; }
+  .panel-header {
+    padding: 6px 10px;
+    background: var(--dim); border-bottom: 1px solid var(--border);
+    font-size: 9px; letter-spacing: 3px; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .panel-header .dot { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:blink 1.5s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  .panel-body { flex:1; overflow-y:auto; overflow-x:hidden; }
+  .panel-body::-webkit-scrollbar { width:3px; }
+  .panel-body::-webkit-scrollbar-thumb { background:var(--border); }
+
+  /* LEFT — conflicts */
+  .conflict-item { padding:8px 10px; border-bottom:1px solid rgba(26,42,26,0.5); cursor:pointer; transition:background 0.15s; }
+  .conflict-item:hover { background:rgba(0,255,65,0.04); }
+  .conflict-name { font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; letter-spacing:1px; margin-bottom:3px; }
+  .conflict-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .conflict-status { font-size:8px; padding:2px 5px; border-radius:2px; letter-spacing:1px; }
+  .status-critical { background:rgba(255,59,0,0.2); color:var(--critical); border:1px solid rgba(255,59,0,0.3); }
+  .status-active { background:rgba(255,140,0,0.2); color:var(--high); border:1px solid rgba(255,140,0,0.3); }
+  .status-elevated { background:rgba(255,215,0,0.2); color:var(--medium); border:1px solid rgba(255,215,0,0.3); }
+  .status-low { background:rgba(0,170,255,0.15); color:var(--low); border:1px solid rgba(0,170,255,0.3); }
+  .intensity-bar { height:3px; background:#111; border-radius:1px; overflow:hidden; }
+  .intensity-fill { height:100%; border-radius:1px; transition:width 1s; }
+  .ci-critical { background:linear-gradient(90deg,#ff3b00,#ff6a00); }
+  .ci-active { background:linear-gradient(90deg,#ff8c00,#ffd700); }
+  .ci-elevated { background:linear-gradient(90deg,#ffd700,#ffeb80); }
+  .ci-low { background:linear-gradient(90deg,#00aaff,#80d4ff); }
+  .conflict-stats { display:flex; gap:8px; margin-top:4px; font-size:8px; color:var(--muted); }
+
+  /* MAP */
+  #map-panel { grid-row:1; grid-column:2; position:relative; }
+  #map-container { width:100%; height:100%; position:relative; background:#02080f; overflow:hidden; }
+  #world-svg { width:100%; height:100%; }
+  .map-controls { position:absolute; top:8px; right:8px; display:flex; flex-direction:column; gap:4px; z-index:10; }
+  .map-btn {
+    width:28px; height:28px; background:rgba(8,13,18,0.9); border:1px solid var(--border);
+    color:var(--muted); font-size:14px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all 0.15s; font-family:'Share Tech Mono',monospace;
+  }
+  .map-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .layer-panel {
+    position:absolute; top:8px; left:8px;
+    background:rgba(8,13,18,0.92); border:1px solid var(--border);
+    padding:8px; z-index:10; min-width:140px;
+  }
+  .layer-title { font-size:8px; letter-spacing:2px; color:var(--muted); margin-bottom:6px; }
+  .layer-item { display:flex; align-items:center; gap:6px; padding:3px 0; font-size:10px; cursor:pointer; color:var(--muted); transition:color 0.15s; }
+  .layer-item.active { color:var(--text); }
+  .layer-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .layer-toggle { width:12px; height:12px; border:1px solid var(--border); margin-left:auto; display:flex; align-items:center; justify-content:center; font-size:8px; }
+  .layer-item.active .layer-toggle { background:rgba(0,255,65,0.2); border-color:var(--accent); color:var(--accent); }
+
+  /* Map markers */
+  .conflict-marker { position:absolute; transform:translate(-50%,-50%); cursor:pointer; z-index:5; }
+  .marker-ring { border-radius:50%; border:2px solid currentColor; animation:pulse-ring 2s ease-out infinite; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
+  @keyframes pulse-ring { 0%{width:12px;height:12px;opacity:1} 100%{width:32px;height:32px;opacity:0} }
+  .marker-core { width:10px; height:10px; border-radius:50%; border:2px solid currentColor; background:rgba(0,0,0,0.5); position:relative; z-index:1; }
+  .marker-label { position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:8px; white-space:nowrap; letter-spacing:1px; font-family:'Oswald',sans-serif; text-shadow:0 0 8px currentColor; pointer-events:none; }
+
+  /* Live data markers */
+  .quake-marker { position:absolute; transform:translate(-50%,-50%); z-index:4; cursor:pointer; }
+  .quake-dot { border-radius:50%; border:1px solid var(--medium); background:rgba(255,215,0,0.3); animation:quake-pulse 3s ease-out infinite; }
+  @keyframes quake-pulse { 0%,100%{transform:scale(1);opacity:0.8} 50%{transform:scale(1.3);opacity:0.4} }
+  .fire-marker { position:absolute; transform:translate(-50%,-50%); z-index:3; font-size:8px; opacity:0.7; pointer-events:none; }
+  .flight-marker { position:absolute; transform:translate(-50%,-50%) rotate(var(--hdg,0deg)); z-index:6; font-size:10px; cursor:pointer; color:var(--low); opacity:0.85; }
+
+  /* Ticker */
+  .breaking-banner { position:absolute; bottom:0; left:0; right:0; background:var(--critical); color:#fff; font-size:10px; font-family:'Oswald',sans-serif; letter-spacing:2px; padding:4px 0; overflow:hidden; z-index:10; }
+  .ticker-inner { display:inline-block; white-space:nowrap; animation:ticker 80s linear infinite; }
+  @keyframes ticker { from{transform:translateX(100vw)} to{transform:translateX(-200%)} }
+
+  /* RIGHT — intel */
+  .intel-item { padding:8px 10px; border-bottom:1px solid rgba(26,42,26,0.4); cursor:pointer; transition:background 0.15s; position:relative; }
+  .intel-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; }
+  .intel-item.sev-critical::before { background:var(--critical); }
+  .intel-item.sev-high::before { background:var(--high); }
+  .intel-item.sev-medium::before { background:var(--medium); }
+  .intel-item.sev-low::before { background:var(--low); }
+  .intel-item:hover { background:rgba(0,255,65,0.03); }
+  .intel-header { display:flex; justify-content:space-between; margin-bottom:3px; }
+  .intel-tag { font-size:7px; padding:1px 4px; border-radius:1px; letter-spacing:1px; font-weight:700; }
+  .tag-breaking { background:rgba(255,59,0,0.3); color:var(--critical); }
+  .tag-alert { background:rgba(255,140,0,0.3); color:var(--high); }
+  .tag-intel { background:rgba(0,255,65,0.2); color:var(--accent); }
+  .tag-report { background:rgba(0,170,255,0.2); color:var(--low); }
+  .intel-time { font-size:8px; color:var(--muted); }
+  .intel-text { font-size:10px; color:var(--text); line-height:1.4; }
+  .intel-source { font-size:8px; color:var(--muted); margin-top:2px; }
+
+  /* BOTTOM */
+  #bottom-left { grid-row:2; grid-column:1; }
+  #bottom-center { grid-row:2; grid-column:2; }
+  #bottom-right { grid-row:2; grid-column:3; }
+  .signal-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; }
+  .signal-item { padding:6px 8px; background:rgba(0,0,0,0.3); border:1px solid rgba(26,42,26,0.5); }
+  .signal-label { font-size:8px; color:var(--muted); letter-spacing:1px; margin-bottom:4px; }
+  .signal-value { font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; line-height:1; }
+  .signal-trend { font-size:8px; margin-top:2px; }
+  .trend-up { color:var(--critical); }
+  .trend-down { color:var(--accent); }
+  .trend-flat { color:var(--muted); }
+  .ai-brief { padding:8px 10px; height:100%; overflow-y:auto; }
+  .ai-tag { font-size:8px; color:var(--accent); letter-spacing:2px; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+  .ai-tag::after { content:''; height:1px; flex:1; background:var(--border); }
+  .ai-text { font-size:10px; color:var(--text); line-height:1.6; }
+  .ai-thinking { display:flex; gap:4px; align-items:center; color:var(--muted); font-size:9px; }
+  .dot-anim { animation:dot-bounce 1.2s infinite; }
+  .dot-anim:nth-child(2) { animation-delay:0.2s; }
+  .dot-anim:nth-child(3) { animation-delay:0.4s; }
+  @keyframes dot-bounce { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  .sources-list { padding:6px 8px; overflow-y:auto; height:100%; }
+  .source-row { display:flex; align-items:center; gap:6px; padding:3px 0; border-bottom:1px solid rgba(26,42,26,0.3); }
+  .source-status { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .src-ok { background:var(--accent); }
+  .src-warn { background:var(--medium); animation:blink 2s step-end infinite; }
+  .src-err { background:var(--critical); }
+  .source-name { font-size:9px; color:var(--text); flex:1; }
+  .source-meta { font-size:8px; color:var(--muted); }
+
+  /* Tooltip */
+  #tooltip { position:fixed; background:rgba(8,13,18,0.95); border:1px solid var(--accent); padding:8px 12px; font-size:10px; max-width:220px; pointer-events:none; z-index:9998; display:none; box-shadow:0 0 20px rgba(0,255,65,0.2); }
+  #tooltip-title { font-family:'Oswald',sans-serif; font-size:14px; color:var(--accent); margin-bottom:4px; }
+  #tooltip-body { color:var(--text); line-height:1.5; }
+
+  /* Notification */
+  .notif-flash { position:fixed; top:44px; right:8px; background:rgba(255,59,0,0.15); border:1px solid var(--critical); padding:6px 12px; font-size:10px; color:var(--critical); z-index:9997; animation:notif-in 0.3s ease, notif-out 0.3s ease 3.7s forwards; pointer-events:none; }
+  @keyframes notif-in { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes notif-out { to{opacity:0;transform:translateX(20px)} }
+
+  /* Loading */
+  .loading { color:var(--muted); font-size:9px; padding:12px; text-align:center; letter-spacing:2px; }
+  .error-msg { color:var(--critical); font-size:9px; padding:8px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">
+    <span class="logo-icon">⊕</span>
+    WAR MONITOR
+  </div>
+  <div class="threat-level">
+    <span>GLOBAL THREAT</span>
+    <div class="threat-bar"><div class="threat-fill"></div></div>
+    <span style="color:var(--high)">ELEVATED</span>
+  </div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-val critical" id="stat-conflicts">—</div><div class="hstat-label">CONFLICTS</div></div>
+    <div class="hstat"><div class="hstat-val high" id="stat-articles">—</div><div class="hstat-label">NEWS/24H</div></div>
+    <div class="hstat"><div class="hstat-val warn" id="stat-quakes">—</div><div class="hstat-label">QUAKES</div></div>
+    <div class="hstat"><div class="hstat-val good" id="stat-flights">—</div><div class="hstat-label">MIL FLIGHTS</div></div>
+  </div>
+  <div class="clock" id="clock">--:--:-- UTC</div>
+</div>
+
+<div id="main">
+  <!-- LEFT -->
+  <div class="panel" id="left-panel">
+    <div class="panel-header"><span>ACTIVE THEATERS</span><div class="dot"></div></div>
+    <div class="panel-body" id="conflict-list"><div class="loading">LOADING THEATERS...</div></div>
+  </div>
+
+  <!-- MAP -->
+  <div class="panel" id="map-panel">
+    <div id="map-container">
+      <svg id="world-svg" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg">
+        <rect width="1000" height="500" fill="#020c15"/>
+        <g stroke="rgba(0,255,65,0.04)" stroke-width="0.5">
+          <line x1="0" y1="125" x2="1000" y2="125"/><line x1="0" y1="250" x2="1000" y2="250"/>
+          <line x1="0" y1="375" x2="1000" y2="375"/><line x1="250" y1="0" x2="250" y2="500"/>
+          <line x1="500" y1="0" x2="500" y2="500"/><line x1="750" y1="0" x2="750" y2="500"/>
+        </g>
+        <line x1="0" y1="250" x2="1000" y2="250" stroke="rgba(0,255,65,0.08)" stroke-width="1" stroke-dasharray="4,8"/>
+        <!-- Continents -->
+        <path d="M 85 60 L 160 55 L 210 80 L 230 100 L 240 130 L 220 160 L 210 200 L 190 240 L 175 270 L 155 260 L 130 240 L 115 220 L 100 200 L 90 170 L 80 140 L 75 110 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 175 270 L 190 275 L 200 290 L 185 300 L 170 290 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="0.5"/>
+        <path d="M 190 290 L 230 280 L 270 300 L 290 340 L 280 390 L 250 430 L 220 450 L 200 430 L 185 400 L 180 360 L 175 320 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 440 70 L 490 60 L 540 70 L 555 90 L 540 110 L 520 120 L 500 130 L 480 120 L 460 130 L 445 120 L 435 100 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 490 30 L 510 20 L 535 30 L 530 55 L 505 60 L 490 55 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="0.8"/>
+        <path d="M 445 75 L 460 70 L 465 90 L 450 95 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="0.5"/>
+        <path d="M 455 140 L 490 130 L 540 140 L 570 170 L 580 210 L 575 260 L 560 310 L 535 360 L 510 380 L 490 375 L 465 355 L 450 310 L 440 260 L 435 210 L 440 170 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 550 50 L 700 40 L 780 55 L 800 70 L 790 90 L 750 100 L 700 105 L 650 100 L 600 110 L 560 105 L 545 85 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 560 130 L 610 120 L 640 135 L 645 165 L 630 180 L 600 175 L 575 160 L 558 148 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 660 130 L 710 125 L 730 150 L 720 200 L 700 230 L 680 220 L 660 190 L 650 160 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 730 160 L 790 155 L 820 170 L 810 190 L 775 195 L 745 185 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 760 80 L 840 75 L 880 90 L 890 115 L 870 140 L 840 150 L 800 145 L 770 130 L 750 108 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <path d="M 880 95 L 900 88 L 910 100 L 900 115 L 885 110 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="0.5"/>
+        <path d="M 770 320 L 840 310 L 890 330 L 900 370 L 870 400 L 820 405 L 780 390 L 760 360 L 755 335 Z" fill="#0d1f10" stroke="#1a3a1a" stroke-width="1"/>
+        <g stroke="rgba(0,255,65,0.03)" stroke-width="0.3" fill="none">
+          <ellipse cx="500" cy="250" rx="490" ry="240"/>
+          <ellipse cx="500" cy="250" rx="370" ry="180"/>
+        </g>
+      </svg>
+      <div id="markers-container" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;"></div>
+      <div class="layer-panel">
+        <div class="layer-title">DATA LAYERS</div>
+        <div class="layer-item active" data-layer="conflicts"><div class="layer-dot" style="background:var(--critical)"></div>Conflicts<div class="layer-toggle">✓</div></div>
+        <div class="layer-item active" data-layer="quakes"><div class="layer-dot" style="background:var(--medium)"></div>Earthquakes<div class="layer-toggle">✓</div></div>
+        <div class="layer-item active" data-layer="fires"><div class="layer-dot" style="background:#ff6600)"></div>Fires<div class="layer-toggle">✓</div></div>
+        <div class="layer-item active" data-layer="flights"><div class="layer-dot" style="background:var(--low)"></div>Mil Flights<div class="layer-toggle">✓</div></div>
+      </div>
+      <div class="map-controls">
+        <div class="map-btn" onclick="refreshAll()" title="Refresh data">↻</div>
+        <div class="map-btn active" title="Global">⊕</div>
+      </div>
+      <div class="breaking-banner"><span class="ticker-inner" id="ticker-text">LOADING LIVE INTEL...</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="panel" id="right-panel">
+    <div class="panel-header"><span>LIVE INTEL FEED</span><div class="dot" style="background:var(--critical)"></div></div>
+    <div class="panel-body" id="intel-feed"><div class="loading">FETCHING GDELT FEED...</div></div>
+  </div>
+
+  <!-- BOTTOM LEFT -->
+  <div class="panel" id="bottom-left">
+    <div class="panel-header"><span>SIGNAL METRICS</span></div>
+    <div class="signal-grid">
+      <div class="signal-item"><div class="signal-label">MIL FLIGHTS</div><div class="signal-value" style="color:var(--high)" id="sig-flights">—</div><div class="signal-trend" id="sig-flights-t">loading...</div></div>
+      <div class="signal-item"><div class="signal-label">EARTHQUAKES</div><div class="signal-value" style="color:var(--medium)" id="sig-quakes">—</div><div class="signal-trend" id="sig-quakes-t">loading...</div></div>
+      <div class="signal-item"><div class="signal-label">FIRE HOTSPOTS</div><div class="signal-value" style="color:var(--critical)" id="sig-fires">—</div><div class="signal-trend trend-flat">satellite VIIRS</div></div>
+      <div class="signal-item"><div class="signal-label">GDELT ARTICLES</div><div class="signal-value" style="color:var(--accent)" id="sig-articles">—</div><div class="signal-trend trend-flat">last 24h</div></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM CENTER -->
+  <div class="panel" id="bottom-center">
+    <div class="panel-header"><span>AI STRATEGIC BRIEF</span><div class="dot" style="background:var(--accent4)"></div></div>
+    <div class="ai-brief">
+      <div class="ai-tag">CLAUDE HAIKU-4.5 SYNTHESIS</div>
+      <div class="ai-thinking" id="ai-thinking"><span class="dot-anim">●</span><span class="dot-anim">●</span><span class="dot-anim">●</span><span style="margin-left:4px">Analyzing live signals...</span></div>
+      <div class="ai-text" id="ai-text" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM RIGHT -->
+  <div class="panel" id="bottom-right">
+    <div class="panel-header"><span>FEED STATUS</span></div>
+    <div class="sources-list" id="sources-list"><div class="loading">CHECKING FEEDS...</div></div>
+  </div>
+</div>
+
+<div id="tooltip"><div id="tooltip-title"></div><div id="tooltip-body"></div></div>
+
+<script>
+// ========== CONFIG ==========
+// When running on Vercel, API_BASE = '' (same origin)
+// For local dev with `vercel dev`, also ''
+const API_BASE = '';
+
+// ========== STATIC CONFLICT DATA ==========
+const CONFLICTS = [
+  { id:'ukr', name:'UKRAINE', status:'critical', intensity:95, lat:49, lng:31, deaths:'~580k', duration:'3y', tag:'RUSSO-UKRAINIAN WAR' },
+  { id:'gaz', name:'GAZA', status:'critical', intensity:90, lat:31.5, lng:34.5, deaths:'~45k', duration:'17mo', tag:'ISRAEL-HAMAS' },
+  { id:'sud', name:'SUDAN', status:'critical', intensity:85, lat:15, lng:32, deaths:'~20k', duration:'22mo', tag:'SAF VS RSF' },
+  { id:'mya', name:'MYANMAR', status:'active', intensity:75, lat:21, lng:96, deaths:'~6k', duration:'4y', tag:'CIVIL WAR' },
+  { id:'syr', name:'SYRIA', status:'active', intensity:70, lat:35, lng:38, deaths:'~580k total', duration:'14y', tag:'MULTI-PARTY' },
+  { id:'eth', name:'ETHIOPIA', status:'active', intensity:65, lat:9, lng:40, deaths:'~300k+', duration:'2y', tag:'AMHARA' },
+  { id:'yem', name:'YEMEN', status:'elevated', intensity:55, lat:15, lng:48, deaths:'~150k', duration:'10y', tag:'HOUTHI-COALITION' },
+  { id:'som', name:'SOMALIA', status:'elevated', intensity:50, lat:6, lng:46, deaths:'unknown', duration:'30y', tag:'AL-SHABAAB' },
+  { id:'hai', name:'HAITI', status:'active', intensity:72, lat:19, lng:-73, deaths:'~5k', duration:'3y', tag:'GANG CONFLICT' },
+  { id:'sah', name:'SAHEL', status:'active', intensity:68, lat:15, lng:0, deaths:'~12k/yr', duration:'10y', tag:'MULTI-COUNTRY' },
+  { id:'pak', name:'PAKISTAN', status:'elevated', intensity:48, lat:33, lng:69, deaths:'thousands', duration:'ongoing', tag:'TTP INSURGENCY' },
+  { id:'lby', name:'LIBYA', status:'elevated', intensity:45, lat:27, lng:17, deaths:'unknown', duration:'14y', tag:'FACTIONAL' },
+  { id:'moz', name:'MOZAMBIQUE', status:'low', intensity:35, lat:-15, lng:35, deaths:'~6k', duration:'7y', tag:'INSURGENCY' },
+  { id:'ira', name:'IRAQ/SYR', status:'elevated', intensity:52, lat:33, lng:44, deaths:'ongoing', duration:'20y+', tag:'ISIS RESURGENCE' },
+];
+
+const conflictMap = Object.fromEntries(CONFLICTS.map(c => [c.id, c]));
+
+// ========== STATE ==========
+let liveData = {
+  articles: [],
+  earthquakes: [],
+  fires: [],
+  flights: [],
+};
+let feedStatus = {
+  gdelt: 'loading', usgs: 'loading', firms: 'loading', opensky: 'loading', groq: 'loading'
+};
+
+// ========== CLOCK ==========
+function renderClock() {
+  const n = new Date();
+  const pad = v => String(v).padStart(2,'0');
+  document.getElementById('clock').textContent = `${pad(n.getUTCHours())}:${pad(n.getUTCMinutes())}:${pad(n.getUTCSeconds())} UTC`;
+}
+setInterval(renderClock, 1000); renderClock();
+
+// ========== GEO ==========
+function geoToSVG(lat, lng) {
+  return { x: ((lng + 180) / 360) * 980 + 10, y: ((90 - lat) / 180) * 480 + 10 };
+}
+
+// ========== FETCH ==========
+async function fetchGDELT() {
+  try {
+    const r = await fetch(`${API_BASE}/api/gdelt`);
+    const d = await r.json();
+    if (d.ok) {
+      liveData.articles = d.articles;
+      feedStatus.gdelt = 'ok';
+      renderIntelFeed();
+      updateTicker();
+      document.getElementById('stat-articles').textContent = d.articles.length;
+      document.getElementById('sig-articles').textContent = d.articles.length;
+    } else {
+      feedStatus.gdelt = 'err';
+    }
+  } catch(e) {
+    feedStatus.gdelt = 'err';
+    console.error('GDELT:', e);
+  }
+  renderSources();
+}
+
+async function fetchUSGS() {
+  try {
+    const r = await fetch(`${API_BASE}/api/usgs?timespan=24h&minmag=4.0`);
+    const d = await r.json();
+    if (d.ok) {
+      liveData.earthquakes = d.earthquakes;
+      feedStatus.usgs = 'ok';
+      document.getElementById('stat-quakes').textContent = d.count;
+      document.getElementById('sig-quakes').textContent = d.count;
+      document.getElementById('sig-quakes-t').textContent = `M4.0+ last 24h`;
+      renderMarkers();
+    } else { feedStatus.usgs = 'err'; }
+  } catch(e) { feedStatus.usgs = 'err'; console.error('USGS:', e); }
+  renderSources();
+}
+
+async function fetchFIRMS() {
+  try {
+    const r = await fetch(`${API_BASE}/api/firms?days=1`);
+    const d = await r.json();
+    if (d.ok) {
+      liveData.fires = d.fires;
+      feedStatus.firms = 'ok';
+      document.getElementById('sig-fires').textContent = d.count;
+      renderMarkers();
+    } else {
+      // FIRMS needs API key — show warning
+      feedStatus.firms = 'warn';
+      document.getElementById('sig-fires').textContent = 'N/K';
+    }
+  } catch(e) { feedStatus.firms = 'warn'; console.error('FIRMS:', e); }
+  renderSources();
+}
+
+async function fetchFlights() {
+  try {
+    const r = await fetch(`${API_BASE}/api/flights`);
+    const d = await r.json();
+    if (d.ok) {
+      liveData.flights = d.flights;
+      feedStatus.opensky = 'ok';
+      document.getElementById('stat-flights').textContent = d.count;
+      document.getElementById('sig-flights').textContent = d.count;
+      document.getElementById('sig-flights-t').textContent = `of ${d.total_tracked?.toLocaleString()} total`;
+      renderMarkers();
+    } else { feedStatus.opensky = 'warn'; }
+  } catch(e) { feedStatus.opensky = 'warn'; console.error('OpenSky:', e); }
+  renderSources();
+}
+
+async function fetchBrief() {
+  try {
+    const headlines = liveData.articles.slice(0,12).map(a => a.title);
+    const r = await fetch(`${API_BASE}/api/brief`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        headlines,
+        earthquakes: liveData.earthquakes.slice(0,5),
+        fires: liveData.fires.length,
+        flights: liveData.flights.length,
+      })
+    });
+    const d = await r.json();
+    feedStatus.groq = d.ok ? 'ok' : 'err';
+    if (d.ok) {
+      document.getElementById('ai-thinking').style.display = 'none';
+      const el = document.getElementById('ai-text');
+      el.style.display = 'block';
+      typeText(el, d.brief);
+    } else {
+      document.getElementById('ai-thinking').innerHTML = `<span style="color:var(--critical)">GROQ API KEY NEEDED — see setup guide</span>`;
+    }
+  } catch(e) {
+    feedStatus.groq = 'err';
+    document.getElementById('ai-thinking').innerHTML = `<span style="color:var(--critical)">Brief unavailable</span>`;
+    console.error('Groq:', e);
+  }
+  renderSources();
+}
+
+function typeText(el, text) {
+  let i = 0;
+  const interval = setInterval(() => {
+    el.textContent = text.slice(0, i++);
+    if (i > text.length) clearInterval(interval);
+  }, 20);
+}
+
+// ========== RENDER ==========
+function renderConflicts() {
+  document.getElementById('stat-conflicts').textContent = CONFLICTS.filter(c => c.status === 'critical' || c.status === 'active').length;
+  document.getElementById('conflict-list').innerHTML = CONFLICTS.map(c => `
+    <div class="conflict-item" onmouseenter="showTip(event,'${c.id}')" onmouseleave="hideTip()">
+      <div class="conflict-meta">
+        <div class="conflict-name">${c.name}</div>
+        <div class="conflict-status status-${c.status}">${c.status.toUpperCase()}</div>
+      </div>
+      <div style="font-size:8px;color:var(--muted);margin-bottom:4px">${c.tag}</div>
+      <div class="intensity-bar"><div class="intensity-fill ci-${c.status}" style="width:${c.intensity}%"></div></div>
+      <div class="conflict-stats"><span>💀 ${c.deaths}</span><span>⏱ ${c.duration}</span></div>
+    </div>
+  `).join('');
+}
+
+function renderIntelFeed() {
+  const articles = liveData.articles;
+  if (!articles.length) {
+    document.getElementById('intel-feed').innerHTML = '<div class="error-msg">No articles loaded. Check GDELT API.</div>';
+    return;
+  }
+  const sevTag = { critical:'BREAKING', high:'ALERT', medium:'INTEL', low:'REPORT' };
+  document.getElementById('intel-feed').innerHTML = articles.map(a => {
+    const t = new Date(a.seenAt ? a.seenAt.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, '$1-$2-$3T$4:$5:$6Z') : Date.now());
+    const timeStr = `${String(t.getUTCHours()).padStart(2,'0')}:${String(t.getUTCMinutes()).padStart(2,'0')}`;
+    const tag = sevTag[a.severity] || 'REPORT';
+    return `
+      <div class="intel-item sev-${a.severity}" onclick="window.open('${a.url}','_blank')">
+        <div class="intel-header">
+          <span class="intel-tag tag-${tag.toLowerCase()}">${tag}</span>
+          <span class="intel-time">${timeStr} UTC</span>
+        </div>
+        <div class="intel-text">${a.title}</div>
+        <div class="intel-source">▸ ${a.source || 'unknown'}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderMarkers() {
+  const container = document.getElementById('markers-container');
+  let html = '';
+
+  // Conflict markers
+  CONFLICTS.forEach(c => {
+    const p = geoToSVG(c.lat, c.lng);
+    const colors = { critical:'var(--critical)', active:'var(--high)', elevated:'var(--medium)', low:'var(--low)' };
+    const col = colors[c.status] || 'var(--accent)';
+    html += `<div class="conflict-marker" style="left:${(p.x/1000)*100}%;top:${(p.y/500)*100}%;color:${col};pointer-events:auto;" onmouseenter="showTip(event,'${c.id}')" onmouseleave="hideTip()">
+      <div class="marker-ring"></div>
+      <div class="marker-core"></div>
+      <div class="marker-label">${c.name}</div>
+    </div>`;
+  });
+
+  // Earthquake markers
+  liveData.earthquakes.slice(0, 30).forEach(q => {
+    const p = geoToSVG(q.lat, q.lng);
+    const size = Math.max(6, q.magnitude * 3);
+    html += `<div class="quake-marker" style="left:${(p.x/1000)*100}%;top:${(p.y/500)*100}%;pointer-events:auto;" title="M${q.magnitude} ${q.place}">
+      <div class="quake-dot" style="width:${size}px;height:${size}px;"></div>
+    </div>`;
+  });
+
+  // Fire markers (subsample)
+  liveData.fires.filter(f => f.severity === 'critical' || f.severity === 'high').slice(0, 60).forEach(f => {
+    const p = geoToSVG(f.lat, f.lng);
+    html += `<div class="fire-marker" style="left:${(p.x/1000)*100}%;top:${(p.y/500)*100}%;">🔥</div>`;
+  });
+
+  // Flight markers
+  liveData.flights.slice(0, 40).forEach(fl => {
+    const p = geoToSVG(fl.lat, fl.lng);
+    html += `<div class="flight-marker" style="left:${(p.x/1000)*100}%;top:${(p.y/500)*100}%;--hdg:${fl.heading||0}deg;" title="${fl.callsign} (${fl.country})">✈</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderSources() {
+  const sources = [
+    { name:'GDELT PROJECT', key:'gdelt', meta:'conflict news' },
+    { name:'USGS EARTHQUAKE', key:'usgs', meta:'seismic data' },
+    { name:'NASA FIRMS', key:'firms', meta:'satellite fires' },
+    { name:'OPENSKY ADS-B', key:'opensky', meta:'flight tracking' },
+    { name:'CLAUDE HAIKU 4.5', key:'groq', meta:'AI brief' },
+  ];
+  document.getElementById('sources-list').innerHTML = sources.map(s => `
+    <div class="source-row">
+      <div class="source-status src-${feedStatus[s.key] || 'warn'}"></div>
+      <div class="source-name">${s.name}</div>
+      <div class="source-meta">${feedStatus[s.key] === 'ok' ? '✓ live' : feedStatus[s.key] === 'err' ? '✗ error' : feedStatus[s.key] === 'warn' ? '⚠ partial' : '... loading'}</div>
+    </div>
+  `).join('');
+}
+
+function updateTicker() {
+  const titles = liveData.articles.filter(a => a.severity === 'critical' || a.severity === 'high').slice(0, 8).map(a => a.title);
+  if (titles.length) {
+    document.getElementById('ticker-text').innerHTML = titles.map(t => `&nbsp;&nbsp;&nbsp;⬛ BREAKING ⬛&nbsp;&nbsp;&nbsp;${t}`).join('');
+  }
+}
+
+// ========== TOOLTIP ==========
+function showTip(event, id) {
+  const c = conflictMap[id];
+  if (!c) return;
+  document.getElementById('tooltip-title').textContent = c.name;
+  document.getElementById('tooltip-body').innerHTML = `${c.tag}<br>Status: ${c.status.toUpperCase()}<br>Deaths: ${c.deaths}<br>Duration: ${c.duration}<br>Intensity: ${c.intensity}/100`;
+  document.getElementById('tooltip').style.display = 'block';
+}
+function hideTip() { document.getElementById('tooltip').style.display = 'none'; }
+document.addEventListener('mousemove', e => {
+  const t = document.getElementById('tooltip');
+  if (t.style.display === 'block') { t.style.left=(e.clientX+12)+'px'; t.style.top=(e.clientY-40)+'px'; }
+});
+
+// ========== LAYERS ==========
+document.querySelectorAll('.layer-item').forEach(item => {
+  item.addEventListener('click', () => {
+    item.classList.toggle('active');
+    item.querySelector('.layer-toggle').textContent = item.classList.contains('active') ? '✓' : '';
+  });
+});
+
+// ========== NOTIFICATIONS ==========
+function showNotif(msg) {
+  const div = document.createElement('div');
+  div.className = 'notif-flash';
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 4200);
+}
+
+// ========== REFRESH ==========
+async function refreshAll() {
+  showNotif('↻ Refreshing all feeds...');
+  await Promise.all([fetchGDELT(), fetchUSGS(), fetchFIRMS(), fetchFlights()]);
+  renderMarkers();
+  // Re-run brief with fresh data
+  document.getElementById('ai-thinking').style.display = 'flex';
+  document.getElementById('ai-text').style.display = 'none';
+  await fetchBrief();
+  showNotif('✓ All feeds updated');
+}
+
+// ========== INIT ==========
+renderConflicts();
+renderSources();
+renderMarkers();
+
+// Fetch all data sources in parallel
+(async () => {
+  await Promise.allSettled([fetchGDELT(), fetchUSGS(), fetchFIRMS(), fetchFlights()]);
+  renderMarkers();
+  // Brief needs articles to be loaded first
+  await fetchBrief();
+})();
+
+// Auto-refresh every 5 minutes
+setInterval(() => {
+  fetchGDELT();
+  fetchUSGS();
+  fetchFlights();
+}, 5 * 60 * 1000);
+
+// FIRMS refreshes less often (satellite passes ~every 12h)
+setInterval(fetchFIRMS, 30 * 60 * 1000);
+</script>
+</body>
+</html>
