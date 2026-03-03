@@ -1,0 +1,17 @@
+[
+  {"name":"Natanz Enrichment","country":"Iran","lat":33.72,"lng":51.73,"type":"Enrichment","status":"active"},
+  {"name":"Fordow Facility","country":"Iran","lat":34.88,"lng":50.99,"type":"Enrichment","status":"active"},
+  {"name":"Bushehr NPP","country":"Iran","lat":28.83,"lng":50.89,"type":"Power Plant","status":"active"},
+  {"name":"Yongbyon Complex","country":"North Korea","lat":39.79,"lng":125.75,"type":"Research/Weapons","status":"active"},
+  {"name":"Dimona","country":"Israel","lat":31.00,"lng":35.15,"type":"Research","status":"active"},
+  {"name":"Khushab","country":"Pakistan","lat":32.04,"lng":72.19,"type":"Plutonium","status":"active"},
+  {"name":"Kahuta","country":"Pakistan","lat":33.63,"lng":73.39,"type":"Enrichment","status":"active"},
+  {"name":"Tarapur NPP","country":"India","lat":19.83,"lng":72.67,"type":"Power Plant","status":"active"},
+  {"name":"Seversk","country":"Russia","lat":56.60,"lng":84.87,"type":"Weapons Complex","status":"active"},
+  {"name":"Sarov (Arzamas-16)","country":"Russia","lat":54.93,"lng":43.32,"type":"Weapons Lab","status":"active"},
+  {"name":"Los Alamos NL","country":"USA","lat":35.88,"lng":-106.29,"type":"Weapons Lab","status":"active"},
+  {"name":"Pantex Plant","country":"USA","lat":35.24,"lng":-101.53,"type":"Weapons Assembly","status":"active"},
+  {"name":"Sellafield","country":"UK","lat":54.42,"lng":-3.50,"type":"Reprocessing","status":"active"},
+  {"name":"La Hague","country":"France","lat":49.67,"lng":-1.88,"type":"Reprocessing","status":"active"},
+  {"name":"Rokkasho","country":"Japan","lat":40.96,"lng":141.32,"type":"Reprocessing","status":"active"}
+]
